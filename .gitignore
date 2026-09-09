@@ -8,6 +8,8 @@ killorder_pages.lua
 # Design source files (large binaries, not needed to run the script) -
 # keep these local, don't publish them
 *.psd
+*.gitignore
+*.gitattributes
 
 # OS / editor cruft
 .DS_Store

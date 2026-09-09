@@ -1,6 +1,6 @@
 # Lazarus Raid Assignments (LRA)
 
-A MacroQuest Lua addon for [Project Lazarus](https://www.project1999.com/) / EQEmu multiboxing, built to run alongside [E3Next](https://github.com/e3core/E3Next). It's a port of the WoW addon [Angry Assignments](https://www.curseforge.com/wow/addons/angry-assignments)' idea to EverQuest: author a named "page" of raid instructions, broadcast it to everyone else running the script, and it pops up as a big, hard-to-miss banner on their screen.
+A MacroQuest Lua addon for EQEmu multiboxing. It's a port of the WoW addon [Angry Assignments](https://www.curseforge.com/wow/addons/angry-assignments)' idea to EverQuest: author a named "page" of raid instructions, broadcast it to everyone else running the script, and it pops up as a big, hard-to-miss banner on their screen.
 
 ## What it does
 
@@ -17,8 +17,7 @@ A MacroQuest Lua addon for [Project Lazarus](https://www.project1999.com/) / EQE
 Copy this whole folder into your MacroQuest `lua` directory so you end up with:
 
 ```
-<MacroQuest folder>\lua\LRA\init.lua
-<MacroQuest folder>\lua\LRA\LRA_icon.png
+<MacroQuest folder>\lua\LRA
 ```
 
 Then run:
@@ -26,9 +25,6 @@ Then run:
 ```
 /lua run LRA
 ```
-
-The slash command is `/lra` (an old `/killorder` hotbutton from before this was renamed should be updated to `/lra`).
-
 ## Slash commands (optional — handy for an EQ hotbutton)
 
 | Command | Effect |
@@ -52,7 +48,6 @@ There's no addon-message channel in EQ like WoW has, so this rides on ordinary r
 | Author | Realist |
 | TurboSuite (mini-bar / theming patterns) | [Drel](https://github.com/drel-git/Turbo) |
 | Idea | [Angry Assignments](https://www.curseforge.com/wow/addons/angry-assignments) (WoW addon) |
-| Built with | Claude (Anthropic) |
 
 ## License
 

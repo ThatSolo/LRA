@@ -45,7 +45,7 @@ There's no addon-message channel in EQ like WoW has, so this rides on ordinary r
 
 | Role | Who |
 |---|---|
-| Author | Realist |
+| Author | ThatSolo (Realist) |
 | TurboSuite (mini-bar / theming patterns) | [Drel](https://github.com/drel-git/Turbo) |
 | Idea | [Angry Assignments](https://www.curseforge.com/wow/addons/angry-assignments) (WoW addon) |
 

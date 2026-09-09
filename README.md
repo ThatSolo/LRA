@@ -1,6 +1,6 @@
 # Lazarus Raid Assignments (LRA)
 
-A MacroQuest Lua addon for EQEmu multiboxing. It's a port of the WoW addon [Angry Assignments](https://www.curseforge.com/wow/addons/angry-assignments)' idea to EverQuest: author a named "page" of raid instructions, broadcast it to everyone else running the script, and it pops up as a big, hard-to-miss banner on their screen.
+A MacroQuest Lua addon for EQEmu multiboxing. It's a port of the WoW addon Angry Assignments' idea to EverQuest: author a named "page" of raid instructions, broadcast it to everyone else running the script, and it pops up as a big, hard-to-miss banner on their screen.
 
 ## What it does
 

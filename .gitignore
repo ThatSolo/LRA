@@ -1,0 +1,11 @@
+# Per-install runtime state (created next to init.lua by MacroQuest's
+# configDir at first run) - these are personal to each player and should
+# never be committed:
+LRA_pages.lua
+LRA_settings.lua
+killorder_pages.lua
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.tmp

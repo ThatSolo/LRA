@@ -33,114 +33,87 @@
       so you end up with:
         <MacroQuest folder>\lua\LRA\init.lua
         <MacroQuest folder>\lua\LRA\LRA_icon.png
-      (this file is named init.lua once it's inside its own LRA\ folder -
-      that's MacroQuest's own convention for a folder-based script, the
-      same one Turbo/TurboSuite uses for itself: <folder>\init.lua run via
-      "/lua run <folder>"). LRA_icon.png is the small badge icon used by
-      the minimized mini bar (see DAILY USE below); LRA still works fine
-      without it - it just falls back to a plain text button - but keep it
-      alongside init.lua if you want the icon.
+      (folder-based script, MacroQuest's own convention - same one
+      Turbo/TurboSuite uses for itself: <folder>\init.lua, run via
+      "/lua run <folder>"). LRA_icon.png is the mini bar's badge icon (see
+      DAILY USE); the script works fine without it, just falls back to a
+      plain text button, so keep it alongside init.lua if you want the icon.
+
     RUN
       /lua run LRA
-
-    (The slash command is "/lra" - if you have an old hotbutton bound to
-    "/killorder" from before this renamed, update it to "/lra".)
+      Slash command is "/lra" (an old "/killorder" hotbutton from before
+      this renamed should be updated to "/lra").
 
     HOW THE BROADCAST WORKS (read this if it doesn't show up on other
     screens)
       There's no addon-message channel in EQ like WoW has, so this rides on
       ordinary raid/group chat: each Send breaks the page into a few chat
       lines wrapped in a distinctive "[KOA-...]" marker and says them over
-      /rs (or /g if you're not in a raid). Every character with this script
-      running is listening for that marker via a loose pattern match and
-      reassembles it locally - so EVERY raider who wants to see your
-      assignments needs this same script running (not just you). Because
-      the exact wrapper text EQ puts around a raid-say line ("PlayerName
-      says to raid, '...'" or similar) isn't something I could verify
-      without a live game client, the listener pattern is deliberately
-      loose (it looks for the [KOA-...] marker anywhere in the line, not
-      the exact sentence around it). If it turns out not to catch on your
-      client, run "/lra debug" - it prints every raw incoming chat
-      line to the console so you can see the exact format your client
-      uses; send me that and I'll tighten the pattern.
+      /rs (or /g outside a raid). Every character running this script
+      listens for that marker and reassembles the page locally - so EVERY
+      raider who wants to see assignments needs this same script running,
+      not just the sender. The exact wrapper text EQ puts around a raid-say
+      line isn't something I could verify without a live client, so the
+      listener pattern is deliberately loose (it matches the [KOA-...]
+      marker anywhere in the line). If it doesn't show up for someone, run
+      "/lra debug" - it prints every raw incoming chat line so you can see
+      the exact format their client uses; send that over and the pattern
+      can be tightened.
 
     DAILY USE
-      - Type a page name and its lines into the "Lazarus Raid Assignments"
-        control window, click "Save & Send".
-      - Next raid, just click "Send" next to a saved page - no retyping.
-      - The banner window can be dragged once to wherever you want it, then
-        locked in place from the control window.
-      - "- Minimize" in the top-left of the control window shrinks it down
-        to a small floating mini bar; click that to bring the full panel
-        back. This is a custom, separate mini window (the same pattern
-        used by TurboSuite's "mini bar" for MacroQuest/EQEmu), not the
-        window's built-in collapse arrow (which is disabled) - it can't
-        get stuck the way that arrow could. If LRA_icon.png is sitting
-        next to LRA.lua (see INSTALL), the mini bar shows a 48x48 gold-
-        hexagon "LRA" badge icon in a gold-bordered, dark navy frame -
-        sized and styled to match TurboGear's own standalone floating
-        icon exactly (not the smaller icons on Turbo's main hub bar) -
-        click the icon itself to restore. If that file is missing, or the
-        running MacroQuest build doesn't support loading/drawing
-        textures, it falls back automatically to the original small
-        "LRA v" text button - either way, clicking it restores the full
-        panel.
+      - Type a page name and its lines into the control window, click
+        "Save & Send". Next raid, just click "Send" next to a saved page -
+        no retyping.
+      - Drag the banner, control window, and mini bar wherever you want
+        them; each remembers its own position (per-install) and reopens
+        there next time. That happens automatically, or click "Save
+        window positions now" in the BANNER section to lock it in on the
+        spot.
+      - "- Minimize" (top-left of the control window) shrinks it to a
+        small floating mini bar; click that to bring the full panel back.
+        It's a separate window using TurboSuite's own "mini bar" pattern,
+        not the window's built-in collapse arrow (disabled, so it can't
+        get stuck the way that arrow could). With LRA_icon.png present, the
+        mini bar shows a 48x48 gold-hexagon "LRA" badge (sized to match
+        TurboGear's own standalone floating icon); otherwise it falls back
+        to a plain "LRA v" text button. Either way, clicking it restores
+        the full panel.
 
     KILL ORDER SECTION (Mark buttons)
       Below the freeform Lines editor is a separate "Kill Order" list: type
       an NPC's name on each row as your own written plan, then target that
-      NPC yourself in-game (click, tab, /assist, extended target window -
-      however you normally target) and click that row's "Mark N" button. It
-      runs /rmarknpc N on whatever you currently have targeted - a local
-      action on your own client (this does NOT get broadcast to anyone; the
-      Lines/Send stuff above is still how you tell other raiders what the
-      order is). The typed name is just your own reference for the plan;
-      it's not used to target for you - name-based targeting (an earlier
-      version of this tried /eqtarget <name>) wasn't reliable enough for
-      this, so marking now always acts on your current target instead.
-      The marker number matches the row's position in the list - row 1
-      marks with 1, row 2 with 2, row 3 with 3 - since that's what "kill
-      order" naturally means (1st/2nd/3rd priority target). EQ only has 3
-      raid marker numbers, so a 4th+ row has no Mark button.
-      /rmarknpc requires EverQuest's own "Mark NPC" raid privilege - the
-      raid leader grants this from the raid window (right-most column of
-      buttons next to a player's name; it's separate from Master/Client
-      above, which only controls this script).
+      NPC in-game (however you normally target) and click that row's
+      "Mark N" button - it runs /rmarknpc N on your current target, a local
+      action that isn't broadcast (Lines/Send above is still how you tell
+      other raiders the order). The typed name is just your own reference,
+      not used to target for you. Row 1 marks with 1, row 2 with 2, row 3
+      with 3 (matching 1st/2nd/3rd priority); EQ only has 3 raid markers,
+      so a 4th+ row has no Mark button. /rmarknpc requires EverQuest's own
+      "Mark NPC" raid privilege, granted from the raid window - separate
+      from this script's own Master/Client role above.
 
     LOOK & FEEL
-      Buttons and section headers are color-coded by what they do (a color
-      language borrowed from TurboSuite's own theme, adapted to this
-      window): green for Save/Send, blue for Edit/New/the page editor,
-      gold for Kill Order's Mark buttons, red for Delete, purple for the
-      Banner settings, gray for Minimize/no-marker-left. Each section
-      ("PAGE EDITOR", "KILL ORDER", "SAVED PAGES", "BANNER") gets a small
-      colored dot next to its heading, and the Master/Client checkbox has
-      one too (green when Master, gray when Client) - the same dot-marker
-      look TurboSuite's own section headers use. Delete is drawn as a
-      small circular "stop sign" icon instead of a plain button, mirroring
-      a control TurboSuite draws the same way, and clicking it does NOT
-      delete right away - it swaps that row to "Confirm delete" / "Cancel"
-      buttons, and only clicking "Confirm delete" actually removes the
-      page (arming a different row's delete, or clicking Cancel, backs out
-      with nothing lost). All of this is purely cosmetic and defensively
-      wrapped - a build that doesn't support the underlying draw-list
-      calls just falls back to plain, uncolored widgets instead (a normal
-      separator + white text, a plain red "X"
-      button for Delete).
+      Buttons and section headers are color-coded by what they do (borrowed
+      from TurboSuite's theme): green for Save/Send, blue for Edit/New/the
+      page editor, gold for Kill Order's Mark buttons, red for Delete,
+      purple for Banner settings, gray for Minimize/no-marker-left. Each
+      section gets a small colored dot next to its heading, and Delete is a
+      circular "stop sign" icon that arms a "Confirm delete" / "Cancel"
+      pair instead of deleting right away. All of this is purely cosmetic
+      and defensively wrapped - a build that doesn't support the
+      underlying draw-list calls falls back to plain, uncolored widgets
+      instead.
 
     MASTER / CLIENT ROLE
-      This same file is what everyone in the raid runs - the "Raid Leader /
-      Master" checkbox at the top of the control window is how each person
-      decides, for themselves, whether they can author & send pages
-      (Master) or just receive them (Client). It's a purely local, per-
-      install setting (there's no way to control it remotely on someone
-      else's machine) and is remembered across restarts. A Client's window
-      hides the editor entirely and can't send, even via the optional
-      "/lra send" command below. First time this runs with no
-      settings saved yet, it defaults to Master if you already have saved
-      pages (so upgrading doesn't change anything for whoever's been using
-      it), or Client if you're starting completely fresh - so hand this
-      file to raid members and they'll start out safely as Clients.
+      Everyone in the raid runs this same file - the "Raid Leader / Master"
+      checkbox decides, per person, whether that install can author & send
+      pages (Master) or only receive them (Client). It's local-only (no
+      way to control it remotely) and remembered across restarts. A
+      Client's window hides the editor entirely and can't send. On first
+      run with nothing saved yet, it defaults to Master if saved pages
+      already exist (so an upgrade doesn't change anything), or Client on
+      a completely fresh install - so hand this file to raid members and
+      they'll start out safely as Clients.
 
     OPTIONAL SLASH COMMANDS (handy for an EQ hotbutton; not required)
       /lra master on|off      - Raid Leader/Master vs. Client (receive only)
@@ -193,6 +166,19 @@ local state = {
     lockPosition = false,
     autoSize     = true,
     fontScale    = 1.6,
+
+    -- Remembered window placement, one pair per window identity (banner,
+    -- full control panel, mini bar - each is its own separate ImGui
+    -- window, see MINI_TITLE/FULL_TITLE below). nil until that window has
+    -- actually been positioned once (by us restoring a saved spot, or by
+    -- the player dragging it this session) - nil means "let ImGui pick",
+    -- same as before this feature existed.
+    bannerPosX   = nil,
+    bannerPosY   = nil,
+    controlPosX  = nil,
+    controlPosY  = nil,
+    miniPosX     = nil,
+    miniPosY     = nil,
 
     activeNote   = nil,   -- { pageName = str, lines = {...}, receivedAt = os.clock() }
     incoming     = {},    -- [txid] = { namesafe=, linecount=, lines={ {seq=,text=} }, lastSeen= }
@@ -266,12 +252,29 @@ local function savePagesToDisk()
     mq.pickle(PAGES_FILE, state.pages)
 end
 
+-- Only copies a field over if it's actually a number - an older settings
+-- file simply won't have the position fields yet, and a corrupt/hand-edited
+-- one might have garbage in them; either way that just leaves the state
+-- field at its nil default (let ImGui pick), never errors.
+local function loadSavedPos(data, key)
+    if type(data[key]) == 'number' then
+        return data[key]
+    end
+    return nil
+end
+
 local function loadSettingsFromDisk()
     local chunk = loadfile(mq.configDir .. '/' .. SETTINGS_FILE)
     if chunk then
         local ok, data = pcall(chunk)
         if ok and type(data) == 'table' and type(data.isMaster) == 'boolean' then
             state.isMaster = data.isMaster
+            state.bannerPosX  = loadSavedPos(data, 'bannerPosX')
+            state.bannerPosY  = loadSavedPos(data, 'bannerPosY')
+            state.controlPosX = loadSavedPos(data, 'controlPosX')
+            state.controlPosY = loadSavedPos(data, 'controlPosY')
+            state.miniPosX    = loadSavedPos(data, 'miniPosX')
+            state.miniPosY    = loadSavedPos(data, 'miniPosY')
             return
         end
     end
@@ -281,7 +284,15 @@ local function loadSettingsFromDisk()
 end
 
 local function saveSettingsToDisk()
-    mq.pickle(SETTINGS_FILE, { isMaster = state.isMaster })
+    mq.pickle(SETTINGS_FILE, {
+        isMaster     = state.isMaster,
+        bannerPosX   = state.bannerPosX,
+        bannerPosY   = state.bannerPosY,
+        controlPosX  = state.controlPosX,
+        controlPosY  = state.controlPosY,
+        miniPosX     = state.miniPosX,
+        miniPosY     = state.miniPosY,
+    })
 end
 
 local function findPageIndexByName(name)
@@ -764,6 +775,71 @@ local function getWindowSize()
     return nil, nil
 end
 
+-- mirrors getWindowSize() above, for the same two GetWindowPos calling
+-- conventions
+local function getWindowPos()
+    local ok, a, b = pcall(ImGui.GetWindowPos)
+    if not ok or a == nil then
+        return nil, nil
+    end
+    if type(a) == 'table' then
+        return a.x, a.y
+    end
+    if type(a) == 'number' then
+        return a, b
+    end
+    return nil, nil
+end
+
+-- Remembered window placement is written to disk throttled (at most once
+-- per POS_SAVE_INTERVAL), not on every frame a window is being dragged -
+-- otherwise every pixel of mouse movement would be a disk write. The main
+-- loop below flushes a pending save at that cadence, and a final
+-- unconditional flush after the loop exits (on /lra exit) makes sure the
+-- very last position of a drag that ended right before quitting is never
+-- lost to the throttle window.
+local POS_SAVE_INTERVAL = 1.0
+local posDirty = false
+local lastPosSaveTime = 0
+
+local function markPositionDirty()
+    posDirty = true
+end
+
+local function maybeFlushPositionSave()
+    if posDirty and (os.clock() - lastPosSaveTime) >= POS_SAVE_INTERVAL then
+        saveSettingsToDisk()
+        lastPosSaveTime = os.clock()
+        posDirty = false
+    end
+end
+
+-- Reads the just-drawn window's actual position and, if it differs from
+-- what's remembered for windowKey (a fresh drag), updates state and marks
+-- the settings dirty for the throttled save above. posXKey/posYKey name
+-- the state fields to update (e.g. 'bannerPosX', 'bannerPosY'). A tiny
+-- 0.5px tolerance absorbs float jitter from the ImGui binding, not real
+-- movement.
+--
+-- Also opportunistically flushes a pending save every call (not just when
+-- THIS frame changed something) - ImGui draw callbacks and the main loop
+-- run on separate schedules in MQ's Lua environment, so a window being
+-- redrawn every frame is actually a more reliable place to service the
+-- throttle than relying solely on the main loop's own periodic pass
+-- (still done too, below, as a harmless redundant safety net).
+local function trackWindowPos(posXKey, posYKey)
+    local x, y = getWindowPos()
+    if x and y then
+        local ox, oy = state[posXKey], state[posYKey]
+        if not ox or not oy or math.abs(x - ox) > 0.5 or math.abs(y - oy) > 0.5 then
+            state[posXKey] = x
+            state[posYKey] = y
+            markPositionDirty()
+        end
+    end
+    maybeFlushPositionSave()
+end
+
 --------------------------------------------------------------------------
 -- theming: a colored accent per section/action "kind", TurboSuite's own
 -- visual language. Every push below is pcall-wrapped and paired with a
@@ -942,9 +1018,15 @@ local function drawMiniPanel()
         varsPushed, colorsPushed = pushMiniBadgeStyle()
     end
 
+    if state.miniPosX and state.miniPosY then
+        ImGui.SetNextWindowPos(state.miniPosX, state.miniPosY, ImGuiCond.FirstUseEver)
+    end
+
     local shouldDraw
     state.controlOpen, shouldDraw = safeBegin(MINI_TITLE, state.controlOpen, flags)
     if shouldDraw then
+        trackWindowPos('miniPosX', 'miniPosY')
+
         local usedIcon = false
         if haveIconPath then
             local drewIcon, clicked = pcall(function()
@@ -988,9 +1070,14 @@ local function drawFullPanel()
     pcall(function() flags = ImGuiWindowFlags.NoCollapse end)
 
     ImGui.SetNextWindowSize(CONTROL_FULL_W, CONTROL_FULL_H, ImGuiCond.FirstUseEver)
+    if state.controlPosX and state.controlPosY then
+        ImGui.SetNextWindowPos(state.controlPosX, state.controlPosY, ImGuiCond.FirstUseEver)
+    end
     local shouldDraw
     state.controlOpen, shouldDraw = safeBegin(FULL_TITLE, state.controlOpen, flags)
     if shouldDraw then
+        trackWindowPos('controlPosX', 'controlPosY')
+
         local nMin = pushButtonColor(COLOR_GRAY)
         if ImGui.Button('- Minimize') then
             state.controlMinimized = true
@@ -1223,6 +1310,21 @@ local function drawFullPanel()
             ImGui.Text('(drag the banner\'s corner to resize it; a scrollbar')
             ImGui.Text('appears if a note has more lines than fit)')
         end
+
+        -- Position-remembering already saves itself automatically
+        -- (throttled while dragging, and once more on /lra exit) - this
+        -- button is just for peace of mind: locks in wherever the banner,
+        -- this panel, and the mini bar currently are right now, without
+        -- waiting on the throttle or a normal exit.
+        local nSavePos = pushButtonColor(COLOR_GREEN)
+        if ImGui.Button('Save window positions now') then
+            saveSettingsToDisk()
+            posDirty = false
+            print('[LRA] window positions saved.')
+        end
+        popColors(nSavePos)
+        ImGui.Text('(this already happens automatically - use this if you')
+        ImGui.Text('want to lock in a spot immediately instead)')
     end
     ImGui.End()
 end
@@ -1267,7 +1369,7 @@ local function drawBanner()
         end
     end)
 
-    ImGui.SetNextWindowPos(200, 120, ImGuiCond.FirstUseEver)
+    ImGui.SetNextWindowPos(state.bannerPosX or 200, state.bannerPosY or 120, ImGuiCond.FirstUseEver)
     if not state.autoSize then
         ImGui.SetNextWindowSize(420, 220, ImGuiCond.FirstUseEver)
     end
@@ -1275,6 +1377,8 @@ local function drawBanner()
     -- banner has no title bar/close button, so only shouldDraw matters here
     local _, visible = safeBegin('##killorder_banner', true, flags)
     if visible then
+        trackWindowPos('bannerPosX', 'bannerPosY')
+
         -- only scale font off window size in manual-resize mode; in
         -- auto-size mode the window size is DERIVED from the font scale, so
         -- doing it there would feed back into itself and spiral
@@ -1335,7 +1439,14 @@ while RUNNING do
     mq.doevents()
     pumpSendQueue()
     pruneStaleIncoming()
+    maybeFlushPositionSave()
     mq.delay(100)
+end
+
+-- final unconditional flush: a drag that ended just before /lra exit
+-- shouldn't be lost to the throttle window above
+if posDirty then
+    saveSettingsToDisk()
 end
 
 mq.imgui.destroy(SCRIPT_NAME .. '_control')

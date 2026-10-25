@@ -115,12 +115,23 @@
       a completely fresh install - so hand this file to raid members and
       they'll start out safely as Clients.
 
+    READY CHECK
+      "Start Ready Check" (Master only) asks each raid GROUP's leader -
+      not every raider - to confirm their group is ready via a small
+      Yes/No popup; the Master's window shows a live tally as answers come
+      in. An unanswered popup, and an incomplete tally, both clear
+      themselves after 30 seconds; a completed tally clears a few seconds
+      after the last answer. Rides the same raid/group chat as pages do.
+      (Group-leader detection is unconfirmed without a live client - if a
+      popup isn't appearing for an actual group leader, run "/lra debug".)
+
     OPTIONAL SLASH COMMANDS (handy for an EQ hotbutton; not required)
       /lra master on|off      - Raid Leader/Master vs. Client (receive only)
       /lra send <page name>   - broadcast a saved page (Master only)
       /lra show | hide        - toggle the banner
       /lra panel show|hide    - toggle the control window
       /lra announce on|off    - toggle broadcasting entirely (Master only)
+      /lra readycheck         - start a ready check (Master only)
       /lra debug on|off       - print every raw incoming chat line
       /lra exit               - unload the script
 --]]
@@ -137,6 +148,8 @@ local SEND_INTERVAL  = 0.4   -- avoid EQ chat throttling
 local STALE_TIMEOUT  = 15
 local FLASH_SECONDS  = 4
 local MAX_LINE_LEN   = 200   -- soft cap; longer lines just get a console warning, not truncated
+local READY_CHECK_TIMEOUT = 30  -- seconds; an unanswered incoming popup auto-dismisses after this, and an incomplete tally auto-clears at this mark too
+local READY_CHECK_CLEAR_DELAY = 5  -- seconds the Master's tally stays up after every group leader has responded, before auto-clearing
 
 -- Manual-resize font scaling is relative to this reference size (the
 -- window's default open size, below) and clamped to MIN/MAX_SCALE.
@@ -167,12 +180,8 @@ local state = {
     autoSize     = true,
     fontScale    = 1.6,
 
-    -- Remembered window placement, one pair per window identity (banner,
-    -- full control panel, mini bar - each is its own separate ImGui
-    -- window, see MINI_TITLE/FULL_TITLE below). nil until that window has
-    -- actually been positioned once (by us restoring a saved spot, or by
-    -- the player dragging it this session) - nil means "let ImGui pick",
-    -- same as before this feature existed.
+    -- Remembered window placement, one pair per window (banner/control/mini).
+    -- nil until positioned once, meaning "let ImGui pick" (pre-existing default).
     bannerPosX   = nil,
     bannerPosY   = nil,
     controlPosX  = nil,
@@ -187,6 +196,13 @@ local state = {
 
     importText   = '',   -- Import Page Code text field
     exportText   = nil,  -- last-exported page code, shown so it can be copied even without clipboard access
+
+    -- Ready Check: the one THIS client started (Master only), if any
+    -- ({ txid, startedAt, responses={{name,answer}}, seen=[name]=true }),
+    -- plus an incoming one awaiting THIS client's own Yes/No click.
+    readyCheck         = nil,
+    incomingReadyCheck = nil,  -- { txid=, fromName=, receivedAt= }
+    answeredReadyChecks = {},  -- [txid]=true, so a resend doesn't reopen an answered popup
 
     sendQueue    = {},
     lastSendAt   = 0,
@@ -252,10 +268,8 @@ local function savePagesToDisk()
     mq.pickle(PAGES_FILE, state.pages)
 end
 
--- Only copies a field over if it's actually a number - an older settings
--- file simply won't have the position fields yet, and a corrupt/hand-edited
--- one might have garbage in them; either way that just leaves the state
--- field at its nil default (let ImGui pick), never errors.
+-- Only copies a field if it's actually a number - an older or corrupt
+-- settings file just leaves the state field at its nil default (let ImGui pick).
 local function loadSavedPos(data, key)
     if type(data[key]) == 'number' then
         return data[key]
@@ -327,6 +341,16 @@ local function queueSend(name, lines)
     table.insert(state.sendQueue, string.format('[KOA-END %s]', txid))
 end
 
+-- Sends one line right now, bypassing state.sendQueue (that queue paces a
+-- page's multiple lines; a one-off like a ready check shouldn't wait behind one).
+local function sendImmediate(msg)
+    if inRaid() then
+        mq.cmdf('/rs %s', msg)
+    else
+        mq.cmdf('/g %s', msg)
+    end
+end
+
 local function pumpSendQueue()
     if #state.sendQueue == 0 then
         return
@@ -336,11 +360,7 @@ local function pumpSendQueue()
         return
     end
     local msg = table.remove(state.sendQueue, 1)
-    if inRaid() then
-        mq.cmdf('/rs %s', msg)
-    else
-        mq.cmdf('/g %s', msg)
-    end
+    sendImmediate(msg)
     state.lastSendAt = now
 end
 
@@ -688,6 +708,154 @@ mq.event('killorder_line',  '#*#[KOA-L #1# #2# #3#]#*#',     onLine)
 mq.event('killorder_end',   '#*#[KOA-END #1#]#*#',           onEnd)
 
 --------------------------------------------------------------------------
+-- ready check: Master-started, each group leader answers Yes/No via a
+-- small popup, Master sees a live tally. Own tiny wire protocol, separate
+-- from the page/KOA one above - one line each way, not a reassembly.
+--------------------------------------------------------------------------
+
+local function myCharName()
+    local name = '?'
+    pcall(function() name = mq.TLO.Me.Name() or '?' end)
+    return name
+end
+
+-- Only this client's own group leader gets asked - a ready check confirms
+-- each GROUP is set, not every raider. Unconfirmed without a live client;
+-- if it never triggers for an actual group leader, run "/lra debug".
+local function amIGroupLeader()
+    local isLeader = false
+    pcall(function()
+        local leaderName = mq.TLO.Group.Leader.Name()
+        local myName = mq.TLO.Me.Name()
+        isLeader = (leaderName ~= nil and myName ~= nil and leaderName == myName)
+    end)
+    return isLeader
+end
+
+-- Best-effort distinct-group count for the Master's "of N group leaders"
+-- tally; returns nil (denominator omitted) if the TLO call isn't supported.
+local function countRaidGroups()
+    local groups, count = {}, 0
+    local ok = pcall(function()
+        local n = mq.TLO.Raid.Members()
+        if type(n) ~= 'number' then
+            return
+        end
+        for i = 1, n do
+            local g = mq.TLO.Raid.Member(i).Group()
+            if g and not groups[g] then
+                groups[g] = true
+                count = count + 1
+            end
+        end
+    end)
+    if ok and count > 0 then
+        return count
+    end
+    return nil
+end
+
+-- Master only: starts a new check, resetting any previous tally this
+-- client was tracking.
+local function startReadyCheck()
+    if not state.isMaster then
+        print('[LRA] only the Raid Leader / Master can start a ready check.')
+        return
+    end
+    if not state.announce then
+        print('[LRA] broadcasting is OFF - enable it to start a ready check.')
+        return
+    end
+    local txid = newTxId()
+    state.readyCheck = {
+        txid      = txid,
+        startedAt = os.clock(),
+        responses = {},
+        seen      = {},
+    }
+    sendImmediate(string.format('[RDYCHK-REQ %s %s]', txid, myCharName():gsub('%s+', '_')))
+    print('[LRA] ready check started.')
+end
+
+-- Anyone: answers whatever incoming check is currently up. Deliberately
+-- NOT gated on isMaster/announce - a Client (or a Master with
+-- broadcasting off) still needs to be able to send their own Yes/No back.
+local function answerReadyCheck(answer)
+    local check = state.incomingReadyCheck
+    if not check then
+        return
+    end
+    sendImmediate(string.format('[RDYCHK-ACK %s %s %s]', check.txid, myCharName():gsub('%s+', '_'), answer))
+    state.answeredReadyChecks[check.txid] = true
+    state.incomingReadyCheck = nil
+end
+
+local function onReadyCheckReq(line, txid, fromNamesafe)
+    onRawLine(line)
+    if state.answeredReadyChecks[txid] then
+        return  -- already answered this one (or a resend of one that already expired) - don't reopen it
+    end
+    if not amIGroupLeader() then
+        return  -- only group leaders are asked to respond
+    end
+    state.incomingReadyCheck = {
+        txid       = txid,
+        fromName   = (fromNamesafe or '?'):gsub('_', ' '),
+        receivedAt = os.clock(),
+    }
+end
+
+local function onReadyCheckAck(line, txid, respondernameSafe, answer)
+    onRawLine(line)
+    local check = state.readyCheck
+    if not check or check.txid ~= txid then
+        return  -- not the check (if any) THIS client is tracking - a foreign or stale txid
+    end
+    local name = (respondernameSafe or '?'):gsub('_', ' ')
+    if check.seen[name] then
+        return  -- de-dupe a resent ack
+    end
+    check.seen[name] = true
+    table.insert(check.responses, { name = name, answer = answer })
+
+    if not check.completedAt then
+        local groupTotal = countRaidGroups()
+        if groupTotal and #check.responses >= groupTotal then
+            check.completedAt = os.clock()
+        end
+    end
+end
+
+-- an unanswered popup quietly goes away after a while - no ack is sent,
+-- so it just counts as a non-response, the same as ignoring one in-game
+local function pruneStaleReadyCheck()
+    local check = state.incomingReadyCheck
+    if check and os.clock() - check.receivedAt > READY_CHECK_TIMEOUT then
+        state.incomingReadyCheck = nil
+    end
+end
+
+-- Auto-clears the Master's tally shortly after everyone's answered
+-- (completedAt, set above), or at READY_CHECK_TIMEOUT if they never did.
+local function pruneFinishedReadyCheck()
+    local check = state.readyCheck
+    if not check then
+        return
+    end
+    local now = os.clock()
+    if check.completedAt then
+        if now - check.completedAt >= READY_CHECK_CLEAR_DELAY then
+            state.readyCheck = nil
+        end
+    elseif now - check.startedAt > READY_CHECK_TIMEOUT then
+        state.readyCheck = nil
+    end
+end
+
+mq.event('ready_check_req', '#*#[RDYCHK-REQ #1# #2#]#*#',    onReadyCheckReq)
+mq.event('ready_check_ack', '#*#[RDYCHK-ACK #1# #2# #3#]#*#', onReadyCheckAck)
+
+--------------------------------------------------------------------------
 -- slash command (optional - handy for EQ hotbuttons, not required)
 --------------------------------------------------------------------------
 
@@ -698,6 +866,7 @@ local function printHelp()
     print('  /lra show | hide        - toggle the banner display')
     print('  /lra panel show|hide   - toggle the control window')
     print('  /lra announce on|off   - toggle broadcasting entirely (Master only)')
+    print('  /lra readycheck        - start a ready check (Master only)')
     print('  /lra debug on|off      - print every raw incoming chat line')
     print('  /lra exit              - unload this script')
 end
@@ -728,6 +897,8 @@ mq.bind('/lra', function(...)
         local mode = string.lower(args[2] or '')
         state.announce = (mode ~= 'off')
         print('[LRA] broadcasting: ' .. (state.announce and 'ON' or 'OFF'))
+    elseif sub == 'readycheck' then
+        startReadyCheck()
     elseif sub == 'debug' then
         local mode = string.lower(args[2] or '')
         state.debug = (mode ~= 'off')
@@ -791,13 +962,9 @@ local function getWindowPos()
     return nil, nil
 end
 
--- Remembered window placement is written to disk throttled (at most once
--- per POS_SAVE_INTERVAL), not on every frame a window is being dragged -
--- otherwise every pixel of mouse movement would be a disk write. The main
--- loop below flushes a pending save at that cadence, and a final
--- unconditional flush after the loop exits (on /lra exit) makes sure the
--- very last position of a drag that ended right before quitting is never
--- lost to the throttle window.
+-- Throttles window-position saves to at most once per POS_SAVE_INTERVAL
+-- (not every frame of a drag). A final flush on /lra exit catches any
+-- drag that ended right before quitting.
 local POS_SAVE_INTERVAL = 1.0
 local posDirty = false
 local lastPosSaveTime = 0
@@ -814,19 +981,11 @@ local function maybeFlushPositionSave()
     end
 end
 
--- Reads the just-drawn window's actual position and, if it differs from
--- what's remembered for windowKey (a fresh drag), updates state and marks
--- the settings dirty for the throttled save above. posXKey/posYKey name
--- the state fields to update (e.g. 'bannerPosX', 'bannerPosY'). A tiny
--- 0.5px tolerance absorbs float jitter from the ImGui binding, not real
--- movement.
---
--- Also opportunistically flushes a pending save every call (not just when
--- THIS frame changed something) - ImGui draw callbacks and the main loop
--- run on separate schedules in MQ's Lua environment, so a window being
--- redrawn every frame is actually a more reliable place to service the
--- throttle than relying solely on the main loop's own periodic pass
--- (still done too, below, as a harmless redundant safety net).
+-- Updates state[posXKey/posYKey] (e.g. 'bannerPosX') when the just-drawn
+-- window has moved (0.5px tolerance for float jitter), and opportunistically
+-- flushes the throttled save every call - draw callbacks run more reliably
+-- than the main loop in MQ's Lua environment, which still does its own
+-- periodic flush too as a harmless backup.
 local function trackWindowPos(posXKey, posYKey)
     local x, y = getWindowPos()
     if x and y then
@@ -841,11 +1000,9 @@ local function trackWindowPos(posXKey, posYKey)
 end
 
 --------------------------------------------------------------------------
--- theming: a colored accent per section/action "kind", TurboSuite's own
--- visual language. Every push below is pcall-wrapped and paired with a
--- COUNT-based pop (never a fixed number), so a partial failure - or a
--- build missing these ImGuiCol/PushStyleColor calls entirely - can't
--- leave a mismatched style stack; it just falls back to plain widgets.
+-- theming: a colored accent per section/action kind (TurboSuite's visual
+-- language). Pushes are pcall-wrapped and popped by count, not a fixed
+-- number, so a partial failure just falls back to plain widgets.
 --------------------------------------------------------------------------
 
 local COLOR_GREEN  = { 60, 120,  80 }  -- Save / Send / commit actions
@@ -854,6 +1011,7 @@ local COLOR_GOLD   = {150, 110,  40 }  -- Kill Order Target+Mark
 local COLOR_RED    = {150,  60,  60 }  -- Delete
 local COLOR_PURPLE = { 90,  82, 130 }  -- Banner settings
 local COLOR_GRAY   = { 90,  90, 100 }  -- Minimize / neutral / no-marker-left
+local COLOR_TEAL   = { 40, 120, 130 }  -- Ready Check
 
 -- each push is its own pcall (not one around all 3) so a mid-way failure
 -- still reports the true count pushed, not a swallowed false 0
@@ -1098,6 +1256,47 @@ local function drawFullPanel()
             saveSettingsToDisk()
         end
 
+        sectionHeaderDot(COLOR_TEAL, 'READY CHECK')
+        pruneFinishedReadyCheck()  -- also here, same reasoning as trackWindowPos above
+        if state.isMaster then
+            local nRdy = pushButtonColor(COLOR_TEAL)
+            if ImGui.Button('Start Ready Check') then
+                startReadyCheck()
+            end
+            popColors(nRdy)
+            if state.readyCheck then
+                ImGui.SameLine()
+                local nClear = pushButtonColor(COLOR_GRAY)
+                if ImGui.Button('Clear##rdychkclear') then
+                    state.readyCheck = nil
+                end
+                popColors(nClear)
+            end
+        end
+        if state.readyCheck then
+            local check = state.readyCheck
+            local yes, no = 0, 0
+            for _, r in ipairs(check.responses) do
+                if r.answer == 'Y' then yes = yes + 1 else no = no + 1 end
+            end
+            local groupTotal = countRaidGroups()
+            local summary = string.format('%d responded (%d ready, %d not ready)', #check.responses, yes, no)
+            if groupTotal then
+                summary = summary .. string.format(' of %d group leaders', groupTotal)
+            end
+            if check.completedAt then
+                summary = summary .. ' - all responded'
+            end
+            ImGui.Text(summary)
+            for _, r in ipairs(check.responses) do
+                inlineDot(r.answer == 'Y' and COLOR_GREEN or COLOR_RED)
+                ImGui.SameLine(0, 4)
+                ImGui.Text(r.name .. ': ' .. (r.answer == 'Y' and 'Ready' or 'Not ready'))
+            end
+        elseif state.isMaster then
+            ImGui.Text('(no ready check in progress)')
+        end
+
         if state.isMaster then
             state.announce = ImGui.Checkbox('Broadcasting enabled', state.announce)
 
@@ -1311,11 +1510,7 @@ local function drawFullPanel()
             ImGui.Text('appears if a note has more lines than fit)')
         end
 
-        -- Position-remembering already saves itself automatically
-        -- (throttled while dragging, and once more on /lra exit) - this
-        -- button is just for peace of mind: locks in wherever the banner,
-        -- this panel, and the mini bar currently are right now, without
-        -- waiting on the throttle or a normal exit.
+        -- Positions already autosave (throttled); this just locks them in now.
         local nSavePos = pushButtonColor(COLOR_GREEN)
         if ImGui.Button('Save window positions now') then
             saveSettingsToDisk()
@@ -1422,8 +1617,46 @@ local function drawBanner()
     ImGui.End()
 end
 
+-- Small popup window, only drawn while an incoming ready check awaits an
+-- answer. Answering (or closing via its own X) clears incomingReadyCheck
+-- so it won't reopen; left alone, it times out via pruneStaleReadyCheck
+-- (called here too, same reasoning as trackWindowPos above).
+local function drawReadyCheckPopup()
+    pruneStaleReadyCheck()
+    local check = state.incomingReadyCheck
+    if not check then
+        return
+    end
+
+    local flags = nil
+    pcall(function() flags = bit32.bor(ImGuiWindowFlags.NoCollapse, ImGuiWindowFlags.AlwaysAutoResize) end)
+    ImGui.SetNextWindowPos(260, 160, ImGuiCond.FirstUseEver)
+    local stillOpen, visible = safeBegin('Ready Check##LRA_ReadyCheckPopup', true, flags)
+    if visible then
+        ImGui.Text(check.fromName .. ' is calling a Ready Check!')
+        ImGui.Text('(you\'re seeing this as your group\'s leader - confirm for your group)')
+        ImGui.Separator()
+        local nYes = pushButtonColor(COLOR_GREEN)
+        if ImGui.Button('Yes, ready##rdychkyes') then
+            answerReadyCheck('Y')
+        end
+        popColors(nYes)
+        ImGui.SameLine()
+        local nNo = pushButtonColor(COLOR_RED)
+        if ImGui.Button('No, not ready##rdychkno') then
+            answerReadyCheck('N')
+        end
+        popColors(nNo)
+    end
+    ImGui.End()
+    if not stillOpen then
+        state.incomingReadyCheck = nil  -- dismissed via the window's own close button - no answer sent
+    end
+end
+
 mq.imgui.init(SCRIPT_NAME .. '_control', drawControlPanel)
 mq.imgui.init(SCRIPT_NAME .. '_banner', drawBanner)
+mq.imgui.init(SCRIPT_NAME .. '_readycheck', drawReadyCheckPopup)
 
 loadPagesFromDisk()
 loadSettingsFromDisk()
@@ -1439,6 +1672,8 @@ while RUNNING do
     mq.doevents()
     pumpSendQueue()
     pruneStaleIncoming()
+    pruneStaleReadyCheck()
+    pruneFinishedReadyCheck()
     maybeFlushPositionSave()
     mq.delay(100)
 end
@@ -1451,4 +1686,5 @@ end
 
 mq.imgui.destroy(SCRIPT_NAME .. '_control')
 mq.imgui.destroy(SCRIPT_NAME .. '_banner')
+mq.imgui.destroy(SCRIPT_NAME .. '_readycheck')
 print('[LRA] unloaded.')
